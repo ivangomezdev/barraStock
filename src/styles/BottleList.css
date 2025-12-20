@@ -83,27 +83,66 @@
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 1rem;
 }
+
+/* --- ESTILOS DE ITEM DE BOTELLA --- */
 .bottle-item {
-  background: #f9f9f9;
+  background: white;
   border: 1px solid #ddd;
   padding: 1rem;
   border-radius: 6px;
   cursor: pointer;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
 }
 .bottle-item:hover {
   background: #ecf0f1;
+  border-color: #3498db;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* ESTADO INACTIVO (SIN STOCK) */
+.bottle-item--inactive {
+  background: #f8f9fa;
+  border-color: #eee;
+  opacity: 0.85;
+}
+.bottle-item--inactive:hover {
+  background: #f0f0f0; /* Un hover sutil */
   border-color: #bdc3c7;
 }
-.bottle-item--inactive {
-  opacity: 0.5;
-  background: #e0e0e0;
-  cursor: not-allowed;
-  pointer-events: none;
+.bottle-item--inactive .bottle-item__name {
+  color: #7f8c8d;
 }
+
 .bottle-item__name {
   font-weight: 500;
 }
+
+/* BADGES (ETIQUETAS) */
+.stock-badge {
+  font-size: 0.8rem;
+  color: white;
+  background: #27ae60;
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-weight: bold;
+}
+
+.empty-badge {
+  font-size: 0.75rem;
+  color: #bdc3c7;
+  font-style: italic;
+  background: #eee;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
 /* Form for specific bottle */
 .bottle-form {
   display: flex;
@@ -149,4 +188,356 @@
 .btn--cancel {
   background-color: #e74c3c;
   color: white;
+}
+
+.active-bottle-section {
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.active-bottle-card {
+  background: white;
+  border: 2px solid #3498db; /* Borde azul para destacar */
+  border-radius: 12px;
+  padding: 1rem;
+  width: 100%;
+  max-width: 300px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 6px rgba(52, 152, 219, 0.1);
+  position: relative;
+}
+
+.active-bottle-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(52, 152, 219, 0.2);
+}
+
+.active-bottle-card.editing {
+  border-color: #27ae60; /* Verde cuando se edita */
+  box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.2);
+}
+
+.active-bottle-icon {
+  font-size: 2rem;
+  background: #ebf5fb;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+}
+
+.active-bottle-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.active-bottle-info .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #7f8c8d;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.active-bottle-info .weight-display {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #2c3e50;
+  line-height: 1.2;
+}
+
+.active-weight-input {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #2c3e50;
+  border: none;
+  border-bottom: 2px solid #27ae60;
+  width: 100px;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+.edit-hint {
+  font-size: 1.2rem;
+  color: #bdc3c7;
+}
+
+.active-bottle-section {
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px; /* Espacio entre el cuadrado y el input de abajo */
+}
+
+/* EL CUADRADO */
+.active-bottle-square {
+  background: white;
+  border: 2px solid #3498db;
+  border-radius: 16px;
+  width: 160px;   /* Ancho fijo */
+  height: 160px;  /* Alto igual al ancho -> CUADRADO */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.15);
+  position: relative;
+  /* No cursor pointer porque no se edita clicando dentro */
+}
+
+.active-bottle-icon {
+  font-size: 2.5rem;
+  background: #ebf5fb;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  margin-bottom: 10px;
+}
+
+.active-bottle-info-square {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.active-bottle-info-square .label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #7f8c8d;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.active-bottle-info-square .weight-display {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #2c3e50;
+  line-height: 1;
+}
+
+/* AREA DE EDICION (ABAJO) */
+.edit-weight-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  height: 50px; /* Altura reservada para evitar saltos bruscos */
+  align-items: center;
+}
+
+.btn-enable-edit {
+  background: transparent;
+  border: 1px solid #bdc3c7;
+  color: #7f8c8d;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.btn-enable-edit:hover {
+  border-color: #3498db;
+  color: #3498db;
+  background: #ebf5fb;
+}
+
+.weight-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  padding: 5px 10px;
+  border: 1px solid #27ae60;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  animation: fadeIn 0.2s ease-in;
+}
+
+.external-weight-input {
+  width: 80px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  border: none;
+  border-bottom: 1px solid #ccc;
+  text-align: center;
+  outline: none;
+  color: #2c3e50;
+}
+
+.external-weight-input:focus {
+  border-bottom-color: #27ae60;
+}
+
+.btn-confirm-edit {
+  background: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.bottles-grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 15px;
+  padding: 10px;
+  margin-bottom: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  min-height: 100px; /* Para que se vea el area vacia */
+  justify-items: center;
+}
+
+.bottle-square {
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.bottle-square:hover {
+  transform: translateY(-3px);
+  border-color: #3498db;
+}
+
+.bottle-square.selected {
+  border-color: #27ae60;
+  box-shadow: 0 0 0 4px rgba(39, 174, 96, 0.2);
+  transform: scale(1.05);
+  z-index: 2;
+}
+
+.bottle-icon {
+  font-size: 1.5rem;
+  margin-bottom: 2px;
+}
+
+.bottle-weight {
+  font-weight: 800;
+  color: #2c3e50;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.bottle-square small {
+  font-size: 0.6rem;
+  color: #95a5a6;
+}
+
+.bottle-index {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-size: 0.6rem;
+  color: #bdc3c7;
+  font-weight: bold;
+}
+
+/* --- AREA DE ACCIONES --- */
+.bottle-actions-area {
+  min-height: 80px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-top: 1px dashed #ccc;
+  padding-top: 1rem;
+}
+
+.btn-add-main {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 30px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+  transition: background 0.2s;
+}
+.btn-add-main:hover {
+  background: #2980b9;
+}
+
+/* PANEL DE EDICION */
+.edit-panel {
+  background: #fff;
+  border: 1px solid #27ae60;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  width: 100%;
+  animation: slideUp 0.2s ease-out;
+}
+
+.edit-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.edit-input {
+  width: 100px;
+  font-size: 1.2rem;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.btn-ok {
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 0 15px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.btn-delete-item {
+  background: transparent;
+  border: 1px solid #e74c3c;
+  color: #e74c3c;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 5px;
+}
+.btn-delete-item:hover {
+  background: #e74c3c;
+  color: white;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }

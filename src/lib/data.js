@@ -261,3 +261,23 @@ export const RESTAURANTS = [
   "Mandarinas Café",
   "Mandarino Beach"
 ];
+
+export const CATEGORY_IMAGES = {
+  "WHISKY": "https://i.imgur.com/qXrKL7X.png", 
+  "VODKA": "https://i.imgur.com/a82riXj.png",
+  "RON": "https://i.imgur.com/ITMouvQ.png",
+   "COGNAC": "https://i.imgur.com/IUXfKzD.png",
+    "MEZCAL": "https://i.imgur.com/ieuHuaw.png",
+  "TEQUILA": "https://i.imgur.com/fJKjpdx.png",
+  "GINEBRA": "https://i.imgur.com/ROdfnkl.png",
+  "BRANDY": "https://i.imgur.com/RKbc8cv.png",
+  "LICORES": "https://i.imgur.com/fRCtcd8.png",
+  "VINO TINTO": "https://i.imgur.com/02hqe08.png",
+  "VINO ESPUMOSO": "https://i.imgur.com/t25bgNv.png",
+   "VINO BLANCO": "https://i.imgur.com/biJjC6L.png",
+  "CERVEZAS": "https://i.imgur.com/guPnfJo.png",
+  "REFRESCOS": "https://i.imgur.com/Idh3m4y.png",
+  "ENERGIZANTES": "https://i.imgur.com/0OqAwL5.png",
+  "AGUAS IMPORTADAS": "https://i.imgur.com/GZCst8J.jpeg"
+  
+};

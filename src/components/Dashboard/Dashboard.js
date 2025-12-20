@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
-import { BOTTLE_DATA } from '../../lib/data';
+// IMPORTAMOS CATEGORY_IMAGES
+import { BOTTLE_DATA, CATEGORY_IMAGES } from '../../lib/data';
 import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import toast, { Toaster } from 'react-hot-toast'; 
 import BottleForm from '../BottleForm/BottleForm';
 import '../../styles/Dashboard.css';
 import '../../styles/BottleList.css';
@@ -14,26 +16,21 @@ export default function Dashboard() {
   const [inventory, setInventory] = useState({});
   const [loading, setLoading] = useState(true);
   
-  // NUEVO ESTADO: Guardamos el ID del restaurante asignado
   const [restaurantId, setRestaurantId] = useState(null);
   const [restaurantName, setRestaurantName] = useState('');
   const [accessError, setAccessError] = useState('');
 
-  // 1. CARGAR PERFIL DE USUARIO Y SU RESTAURANTE ASIGNADO
+  // 1. CARGAR PERFIL
   useEffect(() => {
     const fetchUserAssignment = async () => {
       if (!auth.currentUser) return;
-
       try {
         const uid = auth.currentUser.uid;
-        
-        // Buscamos en la colección "users" el documento con el ID del usuario
         const userDocRef = doc(db, "users", uid);
         const userSnap = await getDoc(userDocRef);
 
         if (userSnap.exists()) {
           const userData = userSnap.data();
-          // El campo se debe llamar "restaurantId" en la base de datos
           if (userData.restaurantId) {
             setRestaurantId(userData.restaurantId);
             setRestaurantName(userData.restaurantName || userData.restaurantId);
@@ -54,13 +51,11 @@ export default function Dashboard() {
     fetchUserAssignment();
   }, []);
 
-  // 2. CARGAR INVENTARIO (Solo cuando ya sabemos el restaurantId)
+  // 2. CARGAR INVENTARIO
   useEffect(() => {
     const loadInventory = async () => {
       if (!restaurantId) return;
-
       try {
-        // Usamos restaurantId en lugar de auth.currentUser.uid
         const docRef = doc(db, "inventories", restaurantId);
         const docSnap = await getDoc(docRef);
 
@@ -71,6 +66,7 @@ export default function Dashboard() {
         }
       } catch (error) {
         console.error("Error cargando inventario:", error);
+        toast.error("Error cargando inventario");
       } finally {
         setLoading(false);
       }
@@ -84,86 +80,85 @@ export default function Dashboard() {
       active: true, 
       peso_inicio: 0,
       peso_fin: 0,
-      cantidad: 0 
+      cantidad: 0,
+      categoria: selectedCategory 
     };
-    if (bottleData.active === false) return;
+    if (!bottleData.categoria) bottleData.categoria = selectedCategory;
     setSelectedBottle(bottleData);
   };
 
-  const handleStockTransaction = async (type, quantity, weight) => {
-    if (!selectedBottle || quantity <= 0 || !restaurantId) return; // Verificamos restaurantId
-
-    const userEmail = auth.currentUser.email;
-    const bottleName = selectedBottle.name;
+  const handleStockTransaction = async (type, quantity, weight, imageUrl = null) => {
+    if (!selectedBottle || !restaurantId) return;
 
     try {
-      const currentStock = selectedBottle.cantidad || 0;
-      let newStock = currentStock;
-      
-      if (type === 'ALTA') newStock = currentStock + quantity;
-      else if (type === 'BAJA') {
-        newStock = currentStock - quantity;
-        if (newStock < 0) newStock = 0;
-      }
-
-      // Guardamos Log con el restaurantId correcto
       await addDoc(collection(db, "stock_logs"), {
-        restaurante_id: restaurantId, // <-- CLAVE: ID DEL RESTAURANTE, NO DEL USUARIO
-        usuario: userEmail,
-        botella: bottleName,
+        restaurante_id: restaurantId,
+        restaurante_nombre: restaurantName,
+        usuario: auth.currentUser.email,
+        botella: selectedBottle.name,
+        categoria: selectedCategory,
         accion: type,
         cantidad_movida: quantity,
         peso_registrado: weight || 0,
-        stock_anterior: currentStock,
-        stock_resultante: newStock,
+        comprobante_url: imageUrl, 
         fecha: serverTimestamp(),
-        fecha_legible: new Date().toLocaleString('es-MX')
+        fecha_string: new Date().toISOString().split('T')[0]
       });
-
-      const updatedBottle = { ...selectedBottle, cantidad: newStock };
-      const newInventory = { ...inventory, [bottleName]: updatedBottle };
-
-      setInventory(newInventory);
-      setSelectedBottle(updatedBottle);
-      
-      // Guardamos en el documento del restaurante
-      await setDoc(doc(db, "inventories", restaurantId), newInventory, { merge: true });
-
-      alert(`Movimiento registrado: ${type} de ${quantity}`);
-
+      // El toast ya lo maneja BottleForm
     } catch (error) {
       console.error(error);
-      alert("Error guardando movimiento.");
+      toast.error("Error guardando log.");
     }
   };
 
   const saveDailyWeights = async (updatedBottle) => {
     if (!restaurantId) return;
+    
     const newInventory = { ...inventory, [updatedBottle.name]: updatedBottle };
     setInventory(newInventory);
     setSelectedBottle(null);
-    await setDoc(doc(db, "inventories", restaurantId), newInventory, { merge: true });
+    
+    await toast.promise(
+      setDoc(doc(db, "inventories", restaurantId), newInventory, { merge: true }),
+      {
+        loading: 'Guardando...',
+        success: '¡Guardado!',
+        error: 'Error al guardar.',
+      }
+    );
+
+    // GUARDAR REPORTE DIARIO
+    const totalWeight = (updatedBottle.botellas || []).reduce((acc, b) => acc + parseFloat(b.peso || 0), 0);
+    
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      await addDoc(collection(db, "daily_reports"), {
+        restaurante_id: restaurantId,
+        restaurante_nombre: restaurantName,
+        fecha: todayStr,
+        timestamp: serverTimestamp(),
+        usuario: auth.currentUser.email,
+        botella: updatedBottle.name,
+        categoria: selectedCategory,
+        peso_inicio: updatedBottle.peso_inicio || 0, 
+        peso_fin: totalWeight,
+        consumo_peso: (updatedBottle.peso_inicio || 0) - totalWeight, 
+        stock_actual: updatedBottle.cantidad,
+        comprobante_url: updatedBottle.comprobante_url || null 
+      });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  if (loading) return <div style={{padding:'2rem', textAlign:'center'}}>Cargando sistema...</div>;
-
-  if (accessError) {
-    return (
-      <div style={{padding:'2rem', textAlign:'center', color: '#c0392b'}}>
-        <h2>Acceso Restringido</h2>
-        <p>{accessError}</p>
-        <button className="dashboard__logout" onClick={() => signOut(auth)} style={{marginTop:'1rem'}}>Salir</button>
-      </div>
-    );
-  }
+  if (loading) return <div style={{padding:'2rem', textAlign:'center'}}>Cargando...</div>;
+  if (accessError) return <div style={{padding:'2rem', textAlign:'center', color:'#c0392b'}}>{accessError}</div>;
 
   return (
     <div className="dashboard">
+      <Toaster />
       <header className="dashboard__header">
-        <div>
-          <h1 className="dashboard__title">Stock: {restaurantName}</h1>
-          <small>{auth.currentUser?.email}</small>
-        </div>
+        <div><h1 className="dashboard__title">Stock: {restaurantName}</h1><small>{auth.currentUser?.email}</small></div>
         <button className="dashboard__logout" onClick={() => signOut(auth)}>Salir</button>
       </header>
 
@@ -171,6 +166,18 @@ export default function Dashboard() {
         <div className="dashboard__grid">
           {Object.keys(BOTTLE_DATA).map(cat => (
             <div key={cat} className="category-card" onClick={() => setSelectedCategory(cat)}>
+              
+              {/* --- IMAGEN DE CATEGORÍA --- */}
+              {CATEGORY_IMAGES[cat] ? (
+                <img 
+                  src={CATEGORY_IMAGES[cat]} 
+                  alt={cat} 
+                  className="category-card__img"
+                />
+              ) : (
+                <div className="category-card__placeholder">🍾</div>
+              )}
+              
               <h2 className="category-card__title">{cat}</h2>
             </div>
           ))}
@@ -184,15 +191,13 @@ export default function Dashboard() {
             <h2 className="bottle-modal__title">{selectedCategory}</h2>
             <div className="bottle-list">
               {BOTTLE_DATA[selectedCategory].map(bottleName => {
-                const stock = inventory[bottleName]?.cantidad || 0;
+                const bottleData = inventory[bottleName];
+                const currentStock = bottleData?.cantidad || 0;
+                const itemClass = currentStock > 0 ? "bottle-item" : "bottle-item bottle-item--inactive";
                 return (
-                  <div key={bottleName} className="bottle-item" onClick={() => handleBottleClick(bottleName)}>
+                  <div key={bottleName} className={itemClass} onClick={() => handleBottleClick(bottleName)}>
                     <span className="bottle-item__name">{bottleName}</span>
-                    {stock > 0 && (
-                      <div style={{marginTop:'5px', fontSize:'0.8rem', color:'white', background:'#27ae60', borderRadius:'10px', padding:'2px 8px', display:'inline-block'}}>
-                        Stock: {stock}
-                      </div>
-                    )}
+                    {currentStock > 0 ? <div className="stock-badge">Stock: {currentStock}</div> : <div className="empty-badge">Sin Stock</div>}
                   </div>
                 );
               })}
