@@ -242,36 +242,18 @@ export default function Dashboard() {
       <Toaster />
       <header className="dashboard__header">
         <div><h1 className="dashboard__title">Stock: {restaurantName}</h1><small>{auth.currentUser?.email}</small></div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div className="dashboard__header-actions">
           {!selectedCategory && !selectedBottle && (
             <>
               <button
                 onClick={() => setShowNuevoTrago(true)}
-                style={{
-                  padding: '10px 20px',
-                  background: '#3498db',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  fontWeight: 'bold'
-                }}
+                className="dashboard__button dashboard__button--primary"
               >
                 🍹 Nuevo Trago
               </button>
               <button
                 onClick={() => setShowCierreTurno(true)}
-                style={{
-                  padding: '10px 20px',
-                  background: '#27ae60',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  fontWeight: 'bold'
-                }}
+                className="dashboard__button dashboard__button--success"
               >
                 📋 Cierre de Turno
               </button>

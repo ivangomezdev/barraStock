@@ -14,12 +14,79 @@
   padding: 1rem 1.5rem;
   border-radius: 12px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  gap: 1rem;
 }
 
 .dashboard__title {
   font-size: 1.5rem;
   color: #2c3e50;
   margin: 0;
+}
+
+/* Responsive para pantallas pequeñas */
+@media (max-width: 450px) {
+  .dashboard__header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .dashboard__title {
+    font-size: 1.2rem;
+  }
+
+  .dashboard__header > div:first-child {
+    width: 100%;
+  }
+
+  .dashboard__header > div:last-child {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .dashboard__header > div:last-child button {
+    width: 100%;
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+}
+
+.dashboard__header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dashboard__button {
+  padding: 10px 20px;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+  transition: background 0.3s;
+  white-space: nowrap;
+}
+
+.dashboard__button--primary {
+  background: #3498db;
+}
+
+.dashboard__button--primary:hover {
+  background: #2980b9;
+}
+
+.dashboard__button--success {
+  background: #27ae60;
+}
+
+.dashboard__button--success:hover {
+  background: #229954;
 }
 
 .dashboard__logout {
@@ -30,10 +97,48 @@
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.3s;
+  white-space: nowrap;
 }
 
 .dashboard__logout:hover {
   background-color: #c0392b;
+}
+
+/* Responsive para pantallas pequeñas */
+@media (max-width: 450px) {
+  .dashboard__header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .dashboard__title {
+    font-size: 1.2rem;
+  }
+
+  .dashboard__header > div:first-child {
+    width: 100%;
+  }
+
+  .dashboard__header > div:first-child small {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #7f8c8d;
+  }
+
+  .dashboard__header-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .dashboard__header-actions button {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.85rem;
+  }
 }
 
 .dashboard__grid {
