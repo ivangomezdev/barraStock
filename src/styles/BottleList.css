@@ -120,6 +120,42 @@
   color: #7f8c8d;
 }
 
+/* ESTADO PENDIENTE (CON MOVIMIENTOS DEL TURNO) */
+.bottle-item--pending {
+  position: relative;
+  border: 2px solid #f39c12 !important;
+  box-shadow: 0 0 15px rgba(243, 156, 18, 0.4), 0 0 25px rgba(243, 156, 18, 0.2);
+  animation: pulse-yellow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-yellow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(243, 156, 18, 0.4), 0 0 25px rgba(243, 156, 18, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(243, 156, 18, 0.6), 0 0 35px rgba(243, 156, 18, 0.3);
+  }
+}
+
+.bottle-item--pending:hover {
+  border-color: #e67e22 !important;
+  box-shadow: 0 0 25px rgba(243, 156, 18, 0.6), 0 0 40px rgba(243, 156, 18, 0.3);
+}
+
+.pending-indicator {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: #f39c12;
+  color: white;
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: bold;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
 .bottle-item__name {
   font-weight: 500;
 }

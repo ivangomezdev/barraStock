@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 // --- CONFIGURACIÓN IMGBB ---
 const IMGBB_API_KEY = 'e69966f319cd4a033a3a6eb09c8df789'; // <--- ¡RECUERDA TU API KEY!
 
-export default function BottleForm({ bottle, onSave, onStockTransaction, onCancel }) {
+export default function BottleForm({ bottle, onSave, onStockTransaction, onCancel, hasMovements = false, onCierreTurno = null }) {
   const fechaHoy = new Date().toLocaleDateString('es-MX', { 
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
   });
@@ -237,6 +237,11 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
         toast('Peso actualizado sin cambios', { icon: 'ℹ️' });
     }
     
+    // Si la botella tiene movimientos pendientes, guardar también en cierre_turno
+    if (hasMovements && onCierreTurno) {
+      await onCierreTurno(bottle.name, newWeight, imageUrl);
+    }
+    
     setSelectedBottleIndex(null); 
   };
 
@@ -375,6 +380,26 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
           <h3>{bottle.name}</h3>
           <p style={{ color: '#7f8c8d', fontSize:'0.9rem' }}>{fechaHoy}</p>
         </div>
+
+        {/* ALERTA PARA BOTELLAS CON MOVIMIENTOS PENDIENTES */}
+        {hasMovements && (
+          <div style={{
+            background: '#fff3cd',
+            border: '2px solid #f39c12',
+            borderRadius: '8px',
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>⚠️</div>
+            <div style={{ fontWeight: 'bold', color: '#856404', marginBottom: '0.25rem' }}>
+              Pendiente: Registro de Peso Final
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#856404' }}>
+              Esta botella tuvo movimientos en el turno. Por favor, selecciona la botella, toma foto del pesaje y registra el peso final.
+            </div>
+          </div>
+        )}
 
         <div className="bottles-grid-container">
             {bottlesList.length === 0 ? (

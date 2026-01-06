@@ -5,7 +5,7 @@ import { auth, db } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
 // IMPORTAMOS CATEGORY_IMAGES
 import { BOTTLE_DATA, CATEGORY_IMAGES } from '../../lib/data';
-import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import toast, { Toaster } from 'react-hot-toast'; 
 import BottleForm from '../BottleForm/BottleForm';
 import CierreTurno from '../CierreTurno/CierreTurno';
@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [searchBottle, setSearchBottle] = useState('');
   const [showCierreTurno, setShowCierreTurno] = useState(false);
   const [showNuevoTrago, setShowNuevoTrago] = useState(false);
+  const [bottlesWithMovements, setBottlesWithMovements] = useState(new Set()); // Botellas con movimientos del turno
 
   // 1. CARGAR PERFIL
   useEffect(() => {
@@ -40,9 +41,11 @@ export default function Dashboard() {
 
         if (userSnap.exists()) {
           const userData = userSnap.data();
-          if (userData.restaurantId) {
-            setRestaurantId(userData.restaurantId);
-            setRestaurantName(userData.restaurantName || userData.restaurantId);
+          // Aceptar tanto restaurantId como restaurantID (compatibilidad)
+          const restaurantIdValue = userData.restaurantId || userData.restaurantID;
+          if (restaurantIdValue) {
+            setRestaurantId(restaurantIdValue);
+            setRestaurantName(userData.restaurantName || restaurantIdValue);
           } else {
             setAccessError("Tu usuario no tiene un restaurante asignado.");
             setLoading(false);
@@ -81,6 +84,63 @@ export default function Dashboard() {
       }
     };
     loadInventory();
+  }, [restaurantId]);
+
+  // 3. DETECTAR BOTELLAS CON MOVIMIENTOS DEL TURNO ACTUAL
+  useEffect(() => {
+    const fetchBottlesWithMovements = async () => {
+      if (!restaurantId) return;
+      try {
+        const shiftDate = getShiftDate();
+        const logsQuery = query(
+          collection(db, 'stock_logs'),
+          where('restaurante_id', '==', restaurantId),
+          where('fecha_string', '==', shiftDate)
+        );
+        const logsSnap = await getDocs(logsQuery);
+        
+        // Obtener botellas únicas que tuvieron movimientos
+        const uniqueBottles = new Set();
+        logsSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.botella) {
+            uniqueBottles.add(data.botella);
+          }
+        });
+        
+        // Verificar si ya tienen cierre registrado
+        const cierreQuery = query(
+          collection(db, 'cierre_turno'),
+          where('restaurante_id', '==', restaurantId),
+          where('fecha_turno', '==', shiftDate)
+        );
+        const cierreSnap = await getDocs(cierreQuery);
+        const bottlesWithCierre = new Set();
+        cierreSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.botella) {
+            bottlesWithCierre.add(data.botella);
+          }
+        });
+        
+        // Solo incluir botellas que tienen movimientos pero NO tienen cierre
+        const pendingBottles = new Set();
+        uniqueBottles.forEach(bottle => {
+          if (!bottlesWithCierre.has(bottle)) {
+            pendingBottles.add(bottle);
+          }
+        });
+        
+        setBottlesWithMovements(pendingBottles);
+      } catch (error) {
+        console.error("Error obteniendo botellas con movimientos:", error);
+      }
+    };
+    fetchBottlesWithMovements();
+    
+    // Refrescar cada 30 segundos para actualizar el estado
+    const interval = setInterval(fetchBottlesWithMovements, 30000);
+    return () => clearInterval(interval);
   }, [restaurantId]);
 
   // Modificado: Acepta categoría opcional para búsquedas globales
@@ -207,6 +267,37 @@ export default function Dashboard() {
     }
   };
 
+  // Función para guardar en cierre_turno cuando se registra peso final
+  const handleCierreTurno = async (bottleName, pesoFinal, fotoUrl) => {
+    if (!restaurantId) return;
+    
+    try {
+      const shiftDate = getShiftDate();
+      await addDoc(collection(db, 'cierre_turno'), {
+        restaurante_id: restaurantId,
+        restaurante_nombre: restaurantName,
+        usuario: auth.currentUser.email,
+        botella: bottleName,
+        peso_final_registrado: parseFloat(pesoFinal),
+        foto_pesaje_url: fotoUrl,
+        fecha_turno: shiftDate,
+        timestamp: serverTimestamp()
+      });
+      
+      // Actualizar el estado para quitar la botella de las pendientes
+      setBottlesWithMovements(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(bottleName);
+        return newSet;
+      });
+      
+      toast.success(`Peso final registrado para ${bottleName}`);
+    } catch (error) {
+      console.error('Error guardando cierre:', error);
+      toast.error('Error al guardar el peso final');
+    }
+  };
+
   // --- LÓGICA DE FILTRADO ---
   
   // 1. Filtrar Categorías (Keys de BOTTLE_DATA)
@@ -312,13 +403,15 @@ export default function Dashboard() {
                  const bottleData = inventory[item.name];
                  const currentStock = bottleData?.cantidad || 0;
                  // Reutilizamos estilos de item de botella pero en la grid principal
+                 const hasMovements = bottlesWithMovements.has(item.name);
                  return (
                   <div 
                     key={item.name} 
-                    className="bottle-item" // Clase de BottleList.css
-                    style={{ minHeight: '120px', border: '2px solid #3498db' }}
+                    className={hasMovements ? "bottle-item bottle-item--pending" : "bottle-item"}
+                    style={{ minHeight: '120px', border: hasMovements ? '2px solid #f39c12' : '2px solid #3498db' }}
                     onClick={() => handleBottleClick(item.name, item.category)}
                   >
+                    {hasMovements && <div className="pending-indicator">⚠️ Pendiente Pesaje</div>}
                     <span style={{ fontSize:'0.8rem', color: '#7f8c8d', textTransform:'uppercase' }}>{item.category}</span>
                     <span className="bottle-item__name" style={{fontSize:'1.1rem'}}>{item.name}</span>
                     {currentStock > 0 ? 
@@ -369,9 +462,13 @@ export default function Dashboard() {
               {BOTTLE_DATA[selectedCategory].map(bottleName => {
                 const bottleData = inventory[bottleName];
                 const currentStock = bottleData?.cantidad || 0;
-                const itemClass = currentStock > 0 ? "bottle-item" : "bottle-item bottle-item--inactive";
+                const hasMovements = bottlesWithMovements.has(bottleName);
+                const itemClass = currentStock > 0 
+                  ? (hasMovements ? "bottle-item bottle-item--pending" : "bottle-item")
+                  : "bottle-item bottle-item--inactive";
                 return (
                   <div key={bottleName} className={itemClass} onClick={() => handleBottleClick(bottleName)}>
+                    {hasMovements && <div className="pending-indicator">⚠️ Pendiente Pesaje</div>}
                     <span className="bottle-item__name">{bottleName}</span>
                     {currentStock > 0 ? <div className="stock-badge">Stock: {currentStock}</div> : <div className="empty-badge">Sin Stock</div>}
                   </div>
@@ -391,6 +488,8 @@ export default function Dashboard() {
               onStockTransaction={handleStockTransaction}
               onSave={saveDailyWeights}
               onCancel={() => setSelectedBottle(null)}
+              hasMovements={bottlesWithMovements.has(selectedBottle.name)}
+              onCierreTurno={handleCierreTurno}
             />
           </div>
         </div>
