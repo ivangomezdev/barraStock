@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 
 // --- CONFIGURACIÓN IMGBB ---
-const IMGBB_API_KEY = 'TU_API_KEY_IMGBB_AQUI'; // <--- ¡RECUERDA TU API KEY!
+const IMGBB_API_KEY = 'e69966f319cd4a033a3a6eb09c8df789'; // <--- ¡RECUERDA TU API KEY!
 
 export default function BottleForm({ bottle, onSave, onStockTransaction, onCancel }) {
   const fechaHoy = new Date().toLocaleDateString('es-MX', { 
@@ -12,10 +12,16 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
   // INICIALIZACIÓN
   const [bottlesList, setBottlesList] = useState(() => {
     if (bottle.botellas && Array.isArray(bottle.botellas)) {
-      return bottle.botellas;
+      // Mantener los bottleId existentes, no asignar automáticamente
+      return bottle.botellas.map((b, index) => ({
+        ...b,
+        id: b.id || Date.now() + index,
+        bottleId: b.bottleId || null // Si no tiene bottleId, dejarlo como null (debe ingresarse)
+      }));
     } else {
       return Array(bottle.cantidad || 0).fill(null).map((_, i) => ({
         id: Date.now() + i,
+        bottleId: null, // Sin código hasta que se ingrese
         peso: 0 
       }));
     }
@@ -25,13 +31,20 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
   const [selectedBottleIndex, setSelectedBottleIndex] = useState(null); 
   const [editWeight, setEditWeight] = useState('');
   
+  // Función para obtener el bottleId de una botella por índice
+  const getBottleId = (index) => {
+    if (index === null || index === undefined) return null;
+    return bottlesList[index]?.bottleId || null; // Retornar null si no tiene código
+  };
+  
   // Guardamos la última URL de comprobante para enviarla al guardar todo
   const [lastProofUrl, setLastProofUrl] = useState(null);
 
   // Estados Modal
   const [modalType, setModalType] = useState(null); 
   const [inputQty, setInputQty] = useState('');
-  const [inputWeight, setInputWeight] = useState(''); 
+  const [inputWeight, setInputWeight] = useState('');
+  const [inputBottleIds, setInputBottleIds] = useState(['']); // Array de códigos de barras para múltiples botellas 
   
   // ESTADO PARA FOTO
   const [selectedFile, setSelectedFile] = useState(null);
@@ -63,7 +76,8 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
       setSelectedFile(null); // Limpiar archivo al deseleccionar
     } else {
       setSelectedBottleIndex(index);
-      setEditWeight(bottlesList[index].peso);
+      // No mostrar el peso anterior, solo permitir ingresar uno nuevo
+      setEditWeight('');
       setSelectedFile(null);
     }
   };
@@ -73,7 +87,13 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
     else onCancel();
   };
 
-  const openAddModal = () => { setModalType('ADD'); setInputQty('1'); setInputWeight(''); setSelectedFile(null); };
+  const openAddModal = () => { 
+    setModalType('ADD'); 
+    setInputQty('1'); 
+    setInputWeight(''); 
+    setInputBottleIds(['']); // Inicializar con un campo vacío
+    setSelectedFile(null); 
+  };
   const openRemoveModal = () => { setModalType('REMOVE'); setInputQty(''); setSelectedFile(null); };
   
   // --- TRANSACCIÓN MASIVA (Alta/Baja) ---
@@ -82,20 +102,61 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
     const weight = parseFloat(inputWeight);
 
     if (!qty || qty <= 0) return toast.error("Cantidad inválida");
-    if (!selectedFile) return toast.error("Debes subir comprobante");
+    
+    // Comprobante solo obligatorio para BAJA, no para ALTA
+    if (modalType === 'REMOVE' && !selectedFile) {
+      return toast.error("Debes subir comprobante para dar de baja");
+    }
 
-    setIsUploading(true);
-    const imageUrl = await uploadImage(selectedFile);
-    setIsUploading(false);
-    if (!imageUrl) return;
+    let imageUrl = null;
+    // Solo subir imagen si hay archivo seleccionado (para BAJA)
+    if (selectedFile) {
+      setIsUploading(true);
+      imageUrl = await uploadImage(selectedFile);
+      setIsUploading(false);
+      if (!imageUrl) {
+        toast.error("Error al subir comprobante");
+        return;
+      }
+    }
 
     let newList = [...bottlesList];
 
     if (modalType === 'ADD') {
       if (!weight && weight !== 0) return toast.error("Indica peso");
-      for (let i = 0; i < qty; i++) newList.push({ id: Date.now() + Math.random(), peso: weight });
-      toast.success(`Agregadas ${qty} botellas`);
-      onStockTransaction('ALTA', qty, weight, imageUrl); 
+      
+      // Validar que todos los códigos de barras estén ingresados
+      const bottleIdsToUse = inputBottleIds.slice(0, qty);
+      const emptyIds = bottleIdsToUse.filter(id => !id || id.trim() === '');
+      if (emptyIds.length > 0) {
+        return toast.error(`Debes ingresar el código de barras para todas las ${qty} botella${qty > 1 ? 's' : ''}`);
+      }
+      
+      // Validar que no haya códigos duplicados en la entrada
+      const uniqueIds = new Set(bottleIdsToUse);
+      if (uniqueIds.size !== bottleIdsToUse.length) {
+        return toast.error("Los códigos de barras no pueden estar duplicados");
+      }
+      
+      // Validar que los códigos no existan ya en las botellas existentes
+      const existingIds = new Set(newList.map(b => b.bottleId?.toString().toLowerCase()));
+      const duplicateIds = bottleIdsToUse.filter(id => existingIds.has(id.toString().toLowerCase()));
+      if (duplicateIds.length > 0) {
+        return toast.error(`El código de barras "${duplicateIds[0]}" ya existe. Cada botella debe tener un código único.`);
+      }
+      
+      // Agregar las nuevas botellas con sus códigos de barras
+      for (let i = 0; i < qty; i++) {
+        newList.push({ 
+          id: Date.now() + Math.random(), 
+          bottleId: bottleIdsToUse[i].trim(), // Código de barras ingresado por el barman
+          peso: weight 
+        });
+      }
+      toast.success(`Agregadas ${qty} botella${qty > 1 ? 's' : ''} con sus códigos de barras`);
+      // Para ALTA, pasamos el primer bottleId de las nuevas botellas
+      const firstNewBottleId = bottleIdsToUse[0];
+      onStockTransaction('ALTA', qty, weight, imageUrl, null, null, firstNewBottleId); 
 
     } else if (modalType === 'REMOVE') {
       if (qty > newList.length) return toast.error("Insuficientes botellas");
@@ -131,7 +192,8 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
     setSelectedBottleIndex(null);
     setModalType(null);
 
-    onStockTransaction('BAJA', 1, bottleToDelete.peso || 0, imageUrl);
+    const bottleId = getBottleId(selectedBottleIndex);
+    onStockTransaction('BAJA', 1, bottleToDelete.peso || 0, imageUrl, null, null, bottleId);
     toast.success("Botella dada de baja");
   };
 
@@ -168,7 +230,8 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
     if (diff !== 0) {
         // Log como 'CONSUMO' si bajó, o 'AJUSTE' si subió
         const actionType = diff > 0 ? 'CONSUMO' : 'AJUSTE';
-        onStockTransaction(actionType, 0, diff, imageUrl);
+        const bottleId = getBottleId(selectedBottleIndex);
+        onStockTransaction(actionType, 0, diff, imageUrl, previousWeight, newWeight, bottleId);
         toast.success(diff > 0 ? `Consumo registrado: ${diff.toFixed(2)}` : `Peso ajustado`);
     } else {
         toast('Peso actualizado sin cambios', { icon: 'ℹ️' });
@@ -208,22 +271,76 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
             {(modalType === 'ADD' || modalType === 'REMOVE') && (
                 <>
                     <label style={{display:'block', textAlign:'left'}}>Cantidad:</label>
-                    <input type="number" value={inputQty} onChange={(e) => setInputQty(e.target.value)} autoFocus />
+                    <input 
+                      type="number" 
+                      value={inputQty} 
+                      onChange={(e) => {
+                        const newQty = parseInt(e.target.value) || 1;
+                        setInputQty(e.target.value);
+                        // Ajustar el array de códigos cuando cambia la cantidad
+                        if (modalType === 'ADD') {
+                          const newIds = Array(Math.max(1, newQty)).fill('').map((_, i) => inputBottleIds[i] || '');
+                          setInputBottleIds(newIds);
+                        }
+                      }} 
+                      autoFocus 
+                      min="1"
+                    />
                 </>
             )}
             
             {modalType === 'ADD' && (
               <>
-                <label style={{display:'block', textAlign:'left'}}>Peso por botella:</label>
+                <label style={{display:'block', textAlign:'left', marginTop:'10px'}}>Peso por botella:</label>
                 <input type="number" placeholder="Ej: 1000" value={inputWeight} onChange={(e) => setInputWeight(e.target.value)} />
+                
+                <label style={{display:'block', textAlign:'left', marginTop:'15px', fontWeight:'bold', color:'#2c3e50'}}>
+                  Códigos de Barras (Obligatorio - Uno por botella):
+                </label>
+                <div style={{maxHeight:'200px', overflowY:'auto', border:'1px solid #ddd', borderRadius:'4px', padding:'10px', background:'#f8f9fa'}}>
+                  {Array.from({ length: parseInt(inputQty) || 1 }).map((_, index) => (
+                    <div key={index} style={{marginBottom:'8px'}}>
+                      <label style={{display:'block', fontSize:'0.85rem', color:'#7f8c8d', marginBottom:'4px'}}>
+                        Botella {index + 1}:
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder={`Ingresa código de barras ${index + 1}`}
+                        value={inputBottleIds[index] || ''}
+                        onChange={(e) => {
+                          const newIds = [...inputBottleIds];
+                          newIds[index] = e.target.value;
+                          // Asegurar que el array tenga la longitud correcta
+                          while (newIds.length < (parseInt(inputQty) || 1)) {
+                            newIds.push('');
+                          }
+                          setInputBottleIds(newIds);
+                        }}
+                        style={{
+                          width:'100%',
+                          padding:'8px',
+                          border:'1px solid #ccc',
+                          borderRadius:'4px',
+                          fontSize:'0.9rem',
+                          background:'white'
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <small style={{display:'block', marginTop:'8px', color:'#e74c3c', fontSize:'0.8rem'}}>
+                  ⚠️ El código de barras no se puede cambiar después de guardar. Verifica que sea correcto.
+                </small>
               </>
             )}
 
-            {/* INPUT FILE GENERAL */}
-            <div style={{margin:'15px 0', textAlign:'left'}}>
-              <label style={{display:'block', marginBottom:'5px', fontWeight:'bold', color:'#e74c3c'}}>Comprobante (Obligatorio):</label>
-              <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files[0])} />
-            </div>
+            {/* INPUT FILE GENERAL - Solo para BAJA */}
+            {modalType === 'REMOVE' && (
+              <div style={{margin:'15px 0', textAlign:'left'}}>
+                <label style={{display:'block', marginBottom:'5px', fontWeight:'bold', color:'#e74c3c'}}>Comprobante (Obligatorio para baja):</label>
+                <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files[0])} />
+              </div>
+            )}
             
             <div className="sub-modal-actions">
               <button className="btn btn--cancel" disabled={isUploading} onClick={() => setModalType(null)}>Cancelar</button>
@@ -260,22 +377,44 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
         </div>
 
         <div className="bottles-grid-container">
-            {bottlesList.map((b, index) => (
-                <div key={b.id || index} className={`bottle-square ${selectedBottleIndex === index ? 'selected' : ''}`} onClick={() => handleSelectBottle(index)}>
-                    <div className="bottle-icon">🍾</div>
-                    <span className="bottle-weight">{b.peso}</span>
-                    <small>gr/oz</small>
-                    <span className="bottle-index">#{index + 1}</span>
-                </div>
-            ))}
+            {bottlesList.length === 0 ? (
+              <div style={{
+                gridColumn: '1 / -1',
+                textAlign: 'center',
+                padding: '3rem 1rem',
+                color: '#95a5a6',
+                fontSize: '1.1rem'
+              }}>
+                No hay botellas cargadas
+              </div>
+            ) : (
+              bottlesList.map((b, index) => {
+                const bottleId = b.bottleId;
+                return (
+                  <div key={b.id || index} className={`bottle-square ${selectedBottleIndex === index ? 'selected' : ''}`} onClick={() => handleSelectBottle(index)}>
+                      <div className="bottle-icon">🍾</div>
+                      {/* Ocultar peso para prevenir fraudes - solo administración puede verlo */}
+                      <span className="bottle-weight" style={{display: 'none'}}>{b.peso}</span>
+                      <small style={{display: 'none'}}>gr/oz</small>
+                      {bottleId ? (
+                        <span className="bottle-index" style={{fontSize: '0.75rem', fontWeight: 'normal', color: '#7f8c8d'}}>{bottleId}</span>
+                      ) : (
+                        <span className="bottle-index" style={{fontSize: '0.7rem', fontWeight: 'normal', color: '#e74c3c'}}>Sin código</span>
+                      )}
+                  </div>
+                );
+              })
+            )}
         </div>
 
         <div className="bottle-actions-area">
             {selectedBottleIndex !== null ? (
                 <div className="edit-panel">
-                    <label>Editar Botella #{selectedBottleIndex + 1}</label>
+                    <label>
+                      Registrar Consumo/Venta - Botella {bottlesList[selectedBottleIndex]?.bottleId ? `${bottlesList[selectedBottleIndex].bottleId}` : '(Sin código)'}
+                    </label>
                     <div className="edit-controls">
-                        <input type="number" className="edit-input" value={editWeight} onChange={(e) => setEditWeight(e.target.value)} autoFocus />
+                        <input type="number" className="edit-input" placeholder="Nuevo peso" value={editWeight} onChange={(e) => setEditWeight(e.target.value)} autoFocus />
                         <button type="button" className="btn-ok" onClick={handleWeightUpdate}>
                             {isUploading ? '...' : 'OK'}
                         </button>

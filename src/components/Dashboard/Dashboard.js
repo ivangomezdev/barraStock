@@ -8,6 +8,8 @@ import { BOTTLE_DATA, CATEGORY_IMAGES } from '../../lib/data';
 import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import toast, { Toaster } from 'react-hot-toast'; 
 import BottleForm from '../BottleForm/BottleForm';
+import CierreTurno from '../CierreTurno/CierreTurno';
+import NuevoTrago from '../NuevoTrago/NuevoTrago';
 import '../../styles/Dashboard.css';
 import '../../styles/BottleList.css';
 
@@ -24,6 +26,8 @@ export default function Dashboard() {
   // --- NUEVOS ESTADOS PARA FILTROS ---
   const [searchCategory, setSearchCategory] = useState('');
   const [searchBottle, setSearchBottle] = useState('');
+  const [showCierreTurno, setShowCierreTurno] = useState(false);
+  const [showNuevoTrago, setShowNuevoTrago] = useState(false);
 
   // 1. CARGAR PERFIL
   useEffect(() => {
@@ -106,10 +110,27 @@ export default function Dashboard() {
     setSelectedBottle(bottleData);
   };
 
-  const handleStockTransaction = async (type, quantity, weight, imageUrl = null) => {
+  // Función para obtener la fecha del turno (4pm-3am)
+  // Un turno empieza a las 4pm de un día y termina a las 3am del día siguiente
+  const getShiftDate = (timestamp = null) => {
+    const now = timestamp ? new Date(timestamp) : new Date();
+    const hour = now.getHours();
+    
+    // Si es antes de las 4pm (16:00), pertenece al turno del día anterior
+    if (hour < 16) {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return yesterday.toISOString().split('T')[0];
+    }
+    // Si es 4pm o después, pertenece al turno del día actual
+    return now.toISOString().split('T')[0];
+  };
+
+  const handleStockTransaction = async (type, quantity, weight, imageUrl = null, previousWeight = null, newWeight = null, bottleId = null) => {
     if (!selectedBottle || !restaurantId) return;
 
     try {
+      const shiftDate = getShiftDate(); // Fecha del turno (no fecha calendario)
       await addDoc(collection(db, "stock_logs"), {
         restaurante_id: restaurantId,
         restaurante_nombre: restaurantName,
@@ -119,9 +140,12 @@ export default function Dashboard() {
         accion: type,
         cantidad_movida: quantity,
         peso_registrado: weight || 0,
+        peso_anterior: previousWeight !== null ? previousWeight : null,
+        peso_nuevo: newWeight !== null ? newWeight : null,
+        bottle_id: bottleId, // ID único de la botella física
         comprobante_url: imageUrl, 
         fecha: serverTimestamp(),
-        fecha_string: new Date().toISOString().split('T')[0]
+        fecha_string: shiftDate // Fecha del turno (4pm-3am)
       });
       // El toast ya lo maneja BottleForm
     } catch (error) {
@@ -150,25 +174,36 @@ export default function Dashboard() {
 
     // GUARDAR REPORTE DIARIO
     const totalWeight = (updatedBottle.botellas || []).reduce((acc, b) => acc + parseFloat(b.peso || 0), 0);
+    const pesoInicio = updatedBottle.peso_inicio || 0;
     
-    try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      await addDoc(collection(db, "daily_reports"), {
-        restaurante_id: restaurantId,
-        restaurante_nombre: restaurantName,
-        fecha: todayStr,
-        timestamp: serverTimestamp(),
-        usuario: auth.currentUser.email,
-        botella: updatedBottle.name,
-        categoria: updatedBottle.categoria || selectedCategory,
-        peso_inicio: updatedBottle.peso_inicio || 0, 
-        peso_fin: totalWeight,
-        consumo_peso: (updatedBottle.peso_inicio || 0) - totalWeight, 
-        stock_actual: updatedBottle.cantidad,
-        comprobante_url: updatedBottle.comprobante_url || null 
-      });
-    } catch (err) {
-      console.error(err);
+    // Validación: Si hay stock pero peso_inicio es 0, no crear reporte (botella debería estar dada de baja)
+    if (updatedBottle.cantidad > 0 && pesoInicio === 0) {
+      console.warn(`Botella ${updatedBottle.name} tiene stock pero peso_inicio es 0. No se creará reporte diario.`);
+      toast.error(`⚠️ ${updatedBottle.name} tiene peso inicial 0. Debe estar dada de baja.`);
+      return;
+    }
+    
+    // Solo crear reporte si hay stock y peso_inicio válido
+    if (updatedBottle.cantidad > 0 && pesoInicio > 0) {
+      try {
+        const shiftDate = getShiftDate(); // Fecha del turno (4pm-3am)
+        await addDoc(collection(db, "daily_reports"), {
+          restaurante_id: restaurantId,
+          restaurante_nombre: restaurantName,
+          fecha: shiftDate, // Fecha del turno, no fecha calendario
+          timestamp: serverTimestamp(),
+          usuario: auth.currentUser.email,
+          botella: updatedBottle.name,
+          categoria: updatedBottle.categoria || selectedCategory,
+          peso_inicio: pesoInicio, 
+          peso_fin: totalWeight,
+          consumo_peso: pesoInicio - totalWeight, 
+          stock_actual: updatedBottle.cantidad,
+          comprobante_url: updatedBottle.comprobante_url || null 
+        });
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
@@ -207,7 +242,43 @@ export default function Dashboard() {
       <Toaster />
       <header className="dashboard__header">
         <div><h1 className="dashboard__title">Stock: {restaurantName}</h1><small>{auth.currentUser?.email}</small></div>
-        <button className="dashboard__logout" onClick={() => signOut(auth)}>Salir</button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {!selectedCategory && !selectedBottle && (
+            <>
+              <button
+                onClick={() => setShowNuevoTrago(true)}
+                style={{
+                  padding: '10px 20px',
+                  background: '#3498db',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 'bold'
+                }}
+              >
+                🍹 Nuevo Trago
+              </button>
+              <button
+                onClick={() => setShowCierreTurno(true)}
+                style={{
+                  padding: '10px 20px',
+                  background: '#27ae60',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 'bold'
+                }}
+              >
+                📋 Cierre de Turno
+              </button>
+            </>
+          )}
+          <button className="dashboard__logout" onClick={() => signOut(auth)}>Salir</button>
+        </div>
       </header>
 
       {/* --- NUEVA BARRA DE BÚSQUEDA --- */}
@@ -311,23 +382,7 @@ export default function Dashboard() {
             <h2 className="bottle-modal__title">{selectedCategory}</h2>
             
             {/* Opcional: Input para filtrar dentro del modal también */}
-            <input 
-              type="text" 
-              placeholder={`Buscar en ${selectedCategory}...`}
-              className="sub-modal input" // Reusando clase CSS existente
-              style={{ marginBottom: '1rem', border:'1px solid #ccc' }}
-              onChange={(e) => {
-                 // Filtrado local simple usando DOM o estado local si quisieras, 
-                 // pero por simplicidad mostramos todo o implementamos lógica rápida:
-                 const val = e.target.value.toLowerCase();
-                 const items = document.querySelectorAll('.bottle-list .bottle-item');
-                 items.forEach(item => {
-                   const text = item.innerText.toLowerCase();
-                   item.style.display = text.includes(val) ? 'flex' : 'none';
-                 });
-              }}
-            />
-
+           
             <div className="bottle-list">
               {BOTTLE_DATA[selectedCategory].map(bottleName => {
                 const bottleData = inventory[bottleName];
@@ -357,6 +412,28 @@ export default function Dashboard() {
             />
           </div>
         </div>
+      )}
+
+      {/* --- MODAL DE CIERRE DE TURNO --- */}
+      {showCierreTurno && (
+        <CierreTurno
+          restaurantId={restaurantId}
+          restaurantName={restaurantName}
+          onClose={() => setShowCierreTurno(false)}
+        />
+      )}
+
+      {/* --- MODAL DE NUEVO TRAGO --- */}
+      {showNuevoTrago && (
+        <NuevoTrago
+          restaurantId={restaurantId}
+          restaurantName={restaurantName}
+          inventory={inventory}
+          onClose={() => setShowNuevoTrago(false)}
+          onInventoryUpdate={(updatedInventory) => {
+            setInventory(updatedInventory);
+          }}
+        />
       )}
     </div>
   );
