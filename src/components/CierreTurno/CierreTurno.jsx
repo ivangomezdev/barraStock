@@ -65,11 +65,12 @@ export default function CierreTurno({ restaurantId, restaurantName, onClose }) {
       )
       const logsSnap = await getDocs(logsQuery)
       
-      // Obtener botellas únicas que tuvieron movimientos
+      // Obtener botellas únicas que tuvieron movimientos (excluir ALTA - carga nueva)
       const uniqueBottles = new Set()
       logsSnap.forEach(doc => {
         const data = doc.data()
-        if (data.botella) {
+        // Excluir operaciones de ALTA (carga nueva no requiere cierre)
+        if (data.botella && data.accion !== 'ALTA') {
           uniqueBottles.add(data.botella)
         }
       })
