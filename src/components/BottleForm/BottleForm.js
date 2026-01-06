@@ -340,10 +340,15 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
             )}
 
             {/* INPUT FILE GENERAL - Solo para BAJA */}
-            {modalType === 'REMOVE' && (
+            {(modalType === 'REMOVE' || modalType === 'CONFIRM_DELETE') && (
               <div style={{margin:'15px 0', textAlign:'left'}}>
                 <label style={{display:'block', marginBottom:'5px', fontWeight:'bold', color:'#e74c3c'}}>Comprobante (Obligatorio para baja):</label>
                 <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files[0])} />
+                {selectedFile && (
+                  <small style={{display:'block', marginTop:'5px', color:'#27ae60', fontSize:'0.8rem'}}>
+                    ✓ Archivo seleccionado: {selectedFile.name}
+                  </small>
+                )}
               </div>
             )}
             
@@ -450,7 +455,7 @@ export default function BottleForm({ bottle, onSave, onStockTransaction, onCance
                         <input type="file" accept="image/*" style={{fontSize:'0.8rem', width:'180px'}} onChange={(e) => setSelectedFile(e.target.files[0])} />
                     </div>
 
-                    <button type="button" className="btn-delete-item" onClick={() => { setSelectedFile(null); setModalType('CONFIRM_DELETE'); }}>Dar de Baja 🗑️</button>
+                    <button type="button" className="btn-delete-item" onClick={() => { setModalType('CONFIRM_DELETE'); }}>Dar de Baja 🗑️</button>
                 </div>
             ) : (
                 <button type="button" className="btn-add-main" onClick={openAddModal}>+ Agregar Nueva Botella</button>
